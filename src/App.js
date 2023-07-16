@@ -2,20 +2,26 @@ import Error from "./components/Error";
 import Header from "./components/Header";
 import Loader from "./components/Loader";
 import Main from "./components/Main";
-import { useEffect, useReducer } from "react";
+import { useReducer } from "react";
 import StartScreen from "./components/StartScreen";
 import Question from "./components/Question";
 import NextQuestion from "./components/NextQuestion";
 import Progress from "./components/Progress";
 import FinishedQuiz from "./components/FinishedQuiz";
+import Footer from "./components/Footer";
+import Timer from "./components/Timer";
+import { questions } from "./data/questionsOffline";
+
+const SECS_PER_QUESTION = 30;
 
 const initialState = {
-  questions: [],
-  status: "loading", //loading, ready, active, error, finished
+  questions: questions,
+  status: "ready", //loading, ready, active, error, finished
   index: 0,
   answer: null,
   points: 0,
   highScore: 0,
+  timeLeft: null,
 };
 const reducer = (state, action) => {
   switch (action.type) {
@@ -24,7 +30,11 @@ const reducer = (state, action) => {
     case "dataFailed":
       return { ...state, status: "error" };
     case "start":
-      return { ...state, status: "active" };
+      return {
+        ...state,
+        status: "active",
+        timeLeft: state.questions.length * SECS_PER_QUESTION,
+      };
     case "newAnswer":
       const question = state.questions.at(state.index);
       return {
@@ -51,6 +61,14 @@ const reducer = (state, action) => {
         status: "ready",
         highScore: state.highScore,
       };
+    case "timer":
+      return {
+        ...state,
+        timeLeft: state.timeLeft - 1,
+        status: state.timeLeft === 0 ? "finished" : state.status,
+        highScore:
+          state.points >= state.highScore ? state.points : state.highScore,
+      };
 
     default:
       throw new Error("unknown action");
@@ -58,16 +76,19 @@ const reducer = (state, action) => {
 };
 
 const App = () => {
-  const [{ questions, status, index, answer, points, highScore }, dispatch] =
-    useReducer(reducer, initialState);
+  const [
+    { questions, status, index, answer, points, highScore, timeLeft },
+    dispatch,
+  ] = useReducer(reducer, initialState);
+
   const numQuestions = questions.length;
   const totalPoints = questions.reduce((prev, curr) => prev + curr.points, 0);
-  useEffect(() => {
-    fetch("http://localhost:9000/questions")
-      .then((res) => res.json())
-      .then((data) => dispatch({ type: "dataReceived", payload: data }))
-      .catch((err) => dispatch({ type: "dataFailed" }));
-  }, []);
+  // useEffect(() => {
+  //   fetch("http://localhost:9000/questions")
+  //     .then((res) => res.json())
+  //     .then((data) => dispatch({ type: "dataReceived", payload: data }))
+  //     .catch((err) => dispatch({ type: "dataFailed" }));
+  // }, []);
   return (
     <div className="app">
       <Header />
@@ -92,12 +113,15 @@ const App = () => {
               answer={answer}
               dispatch={dispatch}
             />
-            <NextQuestion
-              dispatch={dispatch}
-              answer={answer}
-              index={index}
-              questions={questions}
-            />
+            <Footer>
+              <Timer dispatch={dispatch} timeLeft={timeLeft} />
+              <NextQuestion
+                dispatch={dispatch}
+                answer={answer}
+                index={index}
+                questions={questions}
+              />
+            </Footer>
           </>
         )}
         {status === "finished" && (
